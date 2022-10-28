@@ -10,8 +10,10 @@ from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 import cv2
 import pandas as pd
+import warnings 
+warnings.filterwarnings('ignore')
 # we are only going to use 4 attributes
-COLS = ['Male', 'Asian', 'White', 'Black']
+COLS = ['Asian', 'White', 'Black']
 N_UPSCLAE = 1
 def extract_features(img_path):
     """Exctract 128 dimensional features
@@ -20,7 +22,7 @@ def extract_features(img_path):
     locs = face_locations(X_img, number_of_times_to_upsample = N_UPSCLAE)
     if len(locs) == 0:
         return None, None
-    face_encodings = face_recognition.face_encodings(X_img, known_face_locations=locs)
+    face_encodings = face_recognition.face_encodings(X_img, known_face_locations = locs)
     return face_encodings, locs
 
 def predict_one_image(img_path, clf, labels):
@@ -29,10 +31,10 @@ def predict_one_image(img_path, clf, labels):
     face_encodings, locs = extract_features(img_path)
     if not face_encodings:
         return None, None
-    pred = pd.DataFrame(clf.predict_proba(face_encodings),
-                        columns = labels)
-    pred = pred.loc[:, COLS]
-    return pred, locs
+    #pred = pd.DataFrame(clf.predict_proba(face_encodings),
+    #                    columns = labels)
+    #pred = pred.loc[:, COLS]
+    return clf.predict_proba(face_encodings)[0], locs
 def draw_attributes(img_path, df):
     """Write bounding boxes and predicted face attributes on the image
     """
@@ -46,7 +48,7 @@ def draw_attributes(img_path, df):
             gender = 'Female'
 
         race = np.argmax(row[1][1:4])
-        text_showed = "{} {}".format(race, gender)
+        text_showed = "{} {}".format(COLS[race+1], gender)
 
         cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
         font = cv2.FONT_HERSHEY_DUPLEX
@@ -76,27 +78,38 @@ def main():
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
     # load the model
-    with open(model_path) as f:
-        clf, labels = pickle.load(f)
-
+    with open(model_path,'rb') as f:
+        clf, labels = pickle.load(f, encoding='latin1')
     print("classifying images in {}".format(input_dir))
-    for fname in tqdm(os.listdir(input_dir)):
-        img_path = os.path.join(input_dir, fname)
-        try:
-            pred, locs = predict_one_image(img_path, clf, labels)
-        except:
-            print("Skipping {}".format(img_path))
-        if not locs:
-            continue
-        locs = \
-            pd.DataFrame(locs, columns = ['top', 'right', 'bottom', 'left'])
-        df = pd.concat([pred, locs], axis=1)
-        img = draw_attributes(img_path, df)
-        cv2.imwrite(os.path.join(output_dir, fname), img)
-        os.path.splitext(fname)[0]
-        output_csvpath = os.path.join(output_dir,
-                                      os.path.splitext(fname)[0] + '.csv')
-        df.to_csv(output_csvpath, index = False)
+    all_list = []
+    for folder in os.listdir(input_dir):
+      count = 0
+      for fname in os.listdir(input_dir + folder):
+          img_path = os.path.join(input_dir + folder, fname)
+          try:
+              pred, locs = predict_one_image(img_path, clf, labels)
+          except:
+              print("Skipping {}".format(img_path))
+          if not locs:
+              continue
+          race = np.argmax(pred[1:4])
+          #if (pred[race])
+          text_showed = "{}".format(COLS[race])
+          #if (text_showed != 'Asian'):
+          print(text_showed, pred[race+1], pred[:5], race)
+          count +=1
+          if (count == 1):
+            break
+          #locs = \
+          #    pd.DataFrame(locs, columns = ['top', 'right', 'bottom', 'left'])
+          #df = pd.concat([pred, locs], axis=1)
+          #img = draw_attributes(img_path, df)
+          #cv2.imwrite(os.path.join(output_dir, fname), img)
+          #os.path.splitext(fname)[0]
+          #output_csvpath = os.path.join(output_dir,
+          #                              os.path.splitext(fname)[0] + '.csv')
+          #df.to_csv(output_csvpath, index = False)
+
 
 if __name__ == "__main__":
     main()
