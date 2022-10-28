@@ -35,25 +35,17 @@ def predict_one_image(img_path, clf, labels):
     #                    columns = labels)
     #pred = pred.loc[:, COLS]
     return clf.predict_proba(face_encodings)[0], locs
-def draw_attributes(img_path, df):
+def draw_attributes(img_path,text_showed, box, prob):
     """Write bounding boxes and predicted face attributes on the image
     """
     img = cv2.imread(img_path)
     # img  = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
-    for row in df.iterrows():
-        top, right, bottom, left = row[1][4:].astype(int)
-        if row[1]['Male'] >= 0.5:
-            gender = 'Male'
-        else:
-            gender = 'Female'
-
-        race = np.argmax(row[1][1:4])
-        text_showed = "{} {}".format(COLS[race+1], gender)
-
-        cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
-        font = cv2.FONT_HERSHEY_DUPLEX
-        img_width = img.shape[1]
-        cv2.putText(img, text_showed, (left + 6, bottom - 6), font, 0.5, (255, 255, 255), 1)
+    top, right, bottom, left = box
+    cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
+    font = cv2.FONT_HERSHEY_DUPLEX
+    img_width = img.shape[1]
+    text_showed2  = text_showed + ":" + str(prob)
+    cv2.putText(img, text_showed2, (left + 6, bottom - 6), font, 0.5, (255, 255, 255), 1)
     return img
 
 
@@ -93,10 +85,14 @@ def main():
           if not locs:
               continue
           race = np.argmax(pred[1:4])
-          #if (pred[race])
-          text_showed = "{}".format(COLS[race])
-          #if (text_showed != 'Asian'):
-          print(text_showed, pred[race+1], pred[:5], race)
+          text_showed = COLS[race]
+          if (text_showed != 'Asian') and (pred[race+1] > 0.5) :
+            print(text_showed, pred[race+1], pred[:5], race)
+            img = draw_attributes(img_path, text_showed, locs[0],pred[race+1])
+            print(os.path.join(output_dir + folder , fname))
+            if not os.path.exists(output_dir + folder):
+              os.mkdir(output_dir + folder)
+            cv2.imwrite(os.path.join(output_dir + folder , fname), img)
           count +=1
           if (count == 1):
             break
